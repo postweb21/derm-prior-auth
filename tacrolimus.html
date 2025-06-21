@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Tacrolimus (Protopic) Prior Auth Checker</title>
+  <style>
+    body { font-family: sans-serif; max-width: 650px; margin: auto; padding: 1em; }
+    label { display: block; margin: 0.5em 0 0.2em; }
+    .output { margin-top: 1em; padding: 1em; border: 1px solid #ccc; border-radius: 5px; }
+    .success { background-color: #e0ffe0; border-color: #60c060; }
+    .warning { background-color: #fff4e0; border-color: #e6a23c; }
+    .collapsible {
+      background-color: #f9f9f9;
+      border: none;
+      padding: 0.5em;
+      text-align: left;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 1em;
+      width: 100%;
+    }
+    .collapsible:after {
+      content: ' ⯆';
+      float: right;
+    }
+    .collapsible.active:after {
+      content: ' ⯅';
+    }
+    .content {
+      display: none;
+      padding: 0.5em 1em;
+      border-left: 4px solid #ccc;
+      margin-top: 0.5em;
+    }
+  </style>
+</head>
+<body>
+  <h2>Tacrolimus (Protopic) Prior Authorization Checker</h2>
+  <p>Outpatient Dermatology – Washington State</p>
+
+  <label>Diagnosis:
+    <select id="diagnosis">
+      <option value="Atopic Dermatitis">Atopic Dermatitis</option>
+      <option value="Vitiligo">Vitiligo</option>
+      <option value="Other">Other Inflammatory Dermatosis</option>
+    </select>
+  </label>
+
+  <label>Payer:
+    <select id="payer">
+      <option value="Premera">Premera</option>
+      <option value="Regence">Regence</option>
+      <option value="Medicaid">Medicaid</option>
+      <option value="Medicare">Medicare</option>
+    </select>
+  </label>
+
+  <label>Patient Age (years):
+    <input type="number" id="age" min="0" step="0.1" />
+  </label>
+
+  <label><input type="checkbox" id="sensitiveArea" /> Affected area involves face, genitals, or skin folds</label>
+  <label><input type="checkbox" id="steroidFail" /> Failed high-potency topical corticosteroid</label>
+  <label><input type="checkbox" id="lowStrengthUsed" /> Using low strength (0.03%) in pediatric patient</label>
+
+  <label>Prescriber is a:
+    <select id="specialist">
+      <option value="Dermatologist">Dermatologist</option>
+      <option value="Pediatrician">Pediatrician</option>
+      <option value="Other">Other</option>
+    </select>
+  </label>
+
+  <button onclick="checkTacrolimus()">Check Documentation</button>
+
+  <div id="result" class="output"></div>
+
+  <script>
+    const rules = {
+      "Atopic Dermatitis": {
+        "Premera": { minAge: 2, requiresSensitiveArea: true, needsSteroidFail: true, dermPreferred: true },
+        "Regence": { minAge: 2, requiresSensitiveArea: true, needsSteroidFail: true, dermPreferred: true },
+        "Medicaid": { minAge: 2, requiresSensitiveArea: false, needsSteroidFail: true, dermPreferred: true },
+        "Medicare": { minAge: 2, requiresSensitiveArea: false, needsSteroidFail: true, dermPreferred: false }
+      },
+      "Vitiligo": {
+        "Premera": "case_by_case",
+        "Regence": "case_by_case",
+        "Medicaid": "not_covered",
+        "Medicare": "case_by_case"
+      },
+      "Other": {
+        "Premera": "not_covered",
+        "Regence": "not_covered",
+        "Medicaid": "not_covered",
+        "Medicare": "case_by_case"
+      }
+    };
+
+    const alternatives = {
+      "Atopic Dermatitis": `
+        <ul>
+          <li><strong>High-potency topical corticosteroids</strong> (if not in sensitive areas)</li>
+          <li><strong>Pimecrolimus</strong> – another calcineurin inhibitor</li>
+          <li><strong>Phototherapy</strong> – for widespread involvement</li>
+        </ul>`,
+      "Vitiligo": `
+        <ul>
+          <li><strong>Topical corticosteroids</strong> (mild to moderate)</li>
+          <li><strong>Phototherapy</strong> – narrowband UVB</li>
+          <li>Consider <strong>ruxolitinib cream</strong> if plan allows</li>
+        </ul>`,
+      "Other": `
+        <ul>
+          <li><strong>Topical steroids</strong> – first-line for most inflammatory dermatoses</li>
+          <li>Consider <strong>dermatology consult</strong> if not already involved</li>
+        </ul>`
+    };
+
+    function checkTacrolimus() {
+      const diagnosis = document.getElementById("diagnosis").value;
+      const payer = document.getElementById("payer").value;
+      const rule = rules[diagnosis][payer];
+      const age = parseFloat(document.getElementById("age").value);
+      const sensitive = document.getElementById("sensitiveArea").checked;
+      const steroidFail = document.getElementById("steroidFail").checked;
+      const lowStrength = document.getElementById("lowStrengthUsed").checked;
+      const specialist = document.getElementById("specialist").value.toLowerCase();
+
+      const result = document.getElementById("result");
+      const issues = [];
+
+      if (rule === "not_covered") {
+        result.innerHTML = `❌ Tacrolimus is not typically covered for this diagnosis under ${payer}.<br>
+          <button class="collapsible">💡 Suggested alternatives</button>
+          <div class="content">${alternatives[diagnosis]}</div>`;
+        result.className = "output warning";
+      } else if (rule === "case_by_case") {
+        result.innerHTML = `⚠️ Coverage for tacrolimus for ${diagnosis} under ${payer} is case-by-case.<br>
+          Submit strong documentation of medical necessity and failure of other therapies.<br>
+          <button class="collapsible">💡 Suggested alternatives</button>
+          <div class="content">${alternatives[diagnosis]}</div>`;
+        result.className = "output warning";
+      } else {
+        if (isNaN(age) || age < rule.minAge) issues.push(`Patient age is below ${rule.minAge} years`);
+        if (rule.requiresSensitiveArea && !sensitive) {
+          issues.push("Involvement of face/genitals/flexures not documented");
+        }
+        if (rule.needsSteroidFail && !steroidFail) {
+          issues.push("No documented failure of topical steroid");
+        }
+        if (rule.dermPreferred && specialist !== "dermatologist") {
+          issues.push("Prescriber is not a dermatologist");
+        }
+
+        if (issues.length === 0) {
+          result.innerHTML = "✅ Documentation likely meets prior authorization criteria.";
+          result.className = "output success";
+        } else {
+          result.innerHTML = "⚠️ Missing or insufficient documentation:<ul>" +
+            issues.map(i => `<li>${i}</li>`).join("") + "</ul>" +
+            `<button class="collapsible">💡 Suggested alternatives</button>
+            <div class="content">${alternatives[diagnosis]}</div>`;
+          result.className = "output warning";
+        }
+      }
+
+      const coll = result.querySelector(".collapsible");
+      const content = result.querySelector(".content");
+      if (coll) {
+        coll.addEventListener("click", function () {
+          this.classList.toggle("active");
+          content.style.display = content.style.display === "block" ? "none" : "block";
+        });
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+services:
+  - type: static
+    name: dermatology-prior-auth
+    env: static
+    staticPublishPath: .
+    buildCommand: ""  # No build needed

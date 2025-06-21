@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Humira Prior Auth Checker (WA Dermatology)</title>
+  <style>
+    body { font-family: sans-serif; max-width: 650px; margin: auto; padding: 1em; }
+    label { display: block; margin: 0.5em 0 0.2em; }
+    .output { margin-top: 1em; padding: 1em; border: 1px solid #ccc; border-radius: 5px; }
+    .success { background-color: #e0ffe0; border-color: #60c060; }
+    .warning { background-color: #fff4e0; border-color: #e6a23c; }
+    .collapsible {
+      background-color: #f9f9f9;
+      border: none;
+      padding: 0.5em;
+      text-align: left;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 1em;
+      width: 100%;
+    }
+    .collapsible:after {
+      content: ' ⯆';
+      float: right;
+    }
+    .collapsible.active:after {
+      content: ' ⯅';
+    }
+    .content {
+      display: none;
+      padding: 0.5em 1em;
+      border-left: 4px solid #ccc;
+      margin-top: 0.5em;
+    }
+  </style>
+</head>
+<body>
+  <h2>Humira (Adalimumab) Prior Authorization Checker</h2>
+  <p>Outpatient Dermatology – Washington State</p>
+
+  <label>Diagnosis:
+    <select id="diagnosis">
+      <option value="HS">Hidradenitis Suppurativa (HS)</option>
+      <option value="Psoriasis">Plaque Psoriasis</option>
+      <option value="Other">Other Dermatologic Condition</option>
+    </select>
+  </label>
+
+  <label>Payer:
+    <select id="payer">
+      <option value="Premera">Premera</option>
+      <option value="Regence">Regence</option>
+      <option value="Medicaid">Medicaid</option>
+      <option value="Medicare">Medicare</option>
+    </select>
+  </label>
+
+  <label>Patient Age (years):
+    <input type="number" id="age" min="0" step="0.1" />
+  </label>
+
+  <label><input type="checkbox" id="topicalFail" /> Failed topical therapy</label>
+  <label><input type="checkbox" id="systemicFail" /> Failed systemic therapy (e.g., antibiotics or methotrexate)</label>
+  <label><input type="checkbox" id="dosingLabel" /> Using FDA-approved dosing</label>
+
+  <label>Prescriber is a:
+    <select id="specialist">
+      <option value="Dermatologist">Dermatologist</option>
+      <option value="Rheumatologist">Rheumatologist</option>
+      <option value="PCP">Primary Care Provider</option>
+      <option value="Other">Other</option>
+    </select>
+  </label>
+
+  <button onclick="checkHumira()">Check Documentation</button>
+
+  <div id="result" class="output"></div>
+
+  <script>
+    const rules = {
+      "HS": {
+        "Premera":    { minAge: 12, needsTopical: true, needsSystemic: true, dermPreferred: true, dosingRequired: true },
+        "Regence":    { minAge: 12, needsTopical: true, needsSystemic: true, dermPreferred: true, dosingRequired: true },
+        "Medicaid":   { minAge: 12, needsTopical: true, needsSystemic: true, dermPreferred: false, dosingRequired: true },
+        "Medicare":   { minAge: 12, needsTopical: true, needsSystemic: true, dermPreferred: false, dosingRequired: true }
+      },
+      "Psoriasis": {
+        "Premera":    { minAge: 18, needsTopical: true, needsSystemic: true, dermPreferred: true, dosingRequired: true },
+        "Regence":    { minAge: 18, needsTopical: true, needsSystemic: true, dermPreferred: true, dosingRequired: true },
+        "Medicaid":   { minAge: 18, needsTopical: true, needsSystemic: true, dermPreferred: false, dosingRequired: true },
+        "Medicare":   { minAge: 18, needsTopical: true, needsSystemic: true, dermPreferred: false, dosingRequired: true }
+      },
+      "Other": {
+        "Premera": "not_covered",
+        "Regence": "not_covered",
+        "Medicaid": "not_covered",
+        "Medicare": "case_by_case"
+      }
+    };
+
+    const alternatives = {
+      "HS": `
+        <ul>
+          <li><strong>Clindamycin + Rifampin</strong> – common dual antibiotic therapy</li>
+          <li><strong>Doxycycline</strong> – often used first-line</li>
+          <li><strong>Surgical referral</strong> or <strong>pain management</strong> for advanced disease</li>
+        </ul>`,
+      "Psoriasis": `
+        <ul>
+          <li><strong>Phototherapy</strong> – often covered as first-line for moderate-severe psoriasis</li>
+          <li><strong>Methotrexate or cyclosporine</strong> – traditional systemic options</li>
+          <li><strong>IL-17 or IL-23 inhibitors</strong> – e.g., Skyrizi, Cosentyx</li>
+        </ul>`,
+      "Other": `
+        <ul>
+          <li><strong>Topical steroids</strong> or <strong>calcineurin inhibitors</strong></li>
+          <li><strong>Phototherapy</strong> if applicable</li>
+          <li>Consider <strong>off-label systemic options</strong> with documentation</li>
+        </ul>`
+    };
+
+    function checkHumira() {
+      const diagnosis = document.getElementById("diagnosis").value;
+      const payer = document.getElementById("payer").value;
+      const rule = rules[diagnosis][payer];
+      const age = parseFloat(document.getElementById("age").value);
+      const topicalFail = document.getElementById("topicalFail").checked;
+      const systemicFail = document.getElementById("systemicFail").checked;
+      const dosing = document.getElementById("dosingLabel").checked;
+      const specialist = document.getElementById("specialist").value.toLowerCase();
+
+      const result = document.getElementById("result");
+      const issues = [];
+
+      if (rule === "not_covered") {
+        result.innerHTML = `❌ Humira is not typically covered for this diagnosis under ${payer}.<br>
+          <button class="collapsible">💡 Suggested alternatives</button>
+          <div class="content">${alternatives[diagnosis]}</div>`;
+        result.className = "output warning";
+      } else if (rule === "case_by_case") {
+        result.innerHTML = `⚠️ Coverage is evaluated case-by-case for this diagnosis under ${payer}.<br>
+          Submit documentation of severity and medical necessity.<br>
+          <button class="collapsible">💡 Suggested alternatives</button>
+          <div class="content">${alternatives[diagnosis]}</div>`;
+        result.className = "output warning";
+      } else {
+        if (isNaN(age) || age < rule.minAge) issues.push(`Patient age is below ${rule.minAge} years`);
+        if (rule.needsTopical && !topicalFail) issues.push("No failure of topical therapy documented");
+        if (rule.needsSystemic && !systemicFail) issues.push("No failure of systemic therapy documented");
+        if (rule.dosingRequired && !dosing) issues.push("Dosing not confirmed to follow FDA label");
+        if (rule.dermPreferred && !["dermatologist", "rheumatologist"].includes(specialist)) {
+          issues.push("Prescriber is not a dermatologist or rheumatologist");
+        }
+
+        if (issues.length === 0) {
+          result.innerHTML = "✅ Documentation likely meets prior authorization criteria.";
+          result.className = "output success";
+        } else {
+          result.innerHTML = "⚠️ Missing or insufficient documentation:<ul>" +
+            issues.map(i => `<li>${i}</li>`).join("") + "</ul>" +
+            `<button class="collapsible">💡 Suggested alternatives</button>
+            <div class="content">${alternatives[diagnosis]}</div>`;
+          result.className = "output warning";
+        }
+      }
+
+      const coll = result.querySelector(".collapsible");
+      const content = result.querySelector(".content");
+      if (coll) {
+        coll.addEventListener("click", function () {
+          this.classList.toggle("active");
+          content.style.display = content.style.display === "block" ? "none" : "block";
+        });
+      }
+    }
+  </script>
+</body>
+</html>

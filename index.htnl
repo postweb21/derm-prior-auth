@@ -1,0 +1,8 @@
+derm-prior-auth/
+├── index.html            ← Landing page with links to 5 apps
+├── accutane.html
+├── dupixent.html
+├── humira.html
+├── stelara.html
+├── tacrolimus.html
+└── render.yaml           ← Optional (for Render config)

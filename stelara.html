@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Stelara Prior Auth Checker (WA Dermatology)</title>
+  <style>
+    body { font-family: sans-serif; max-width: 650px; margin: auto; padding: 1em; }
+    label { display: block; margin: 0.5em 0 0.2em; }
+    .output { margin-top: 1em; padding: 1em; border: 1px solid #ccc; border-radius: 5px; }
+    .success { background-color: #e0ffe0; border-color: #60c060; }
+    .warning { background-color: #fff4e0; border-color: #e6a23c; }
+    .collapsible {
+      background-color: #f9f9f9;
+      border: none;
+      padding: 0.5em;
+      text-align: left;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 1em;
+      width: 100%;
+    }
+    .collapsible:after {
+      content: ' ⯆';
+      float: right;
+    }
+    .collapsible.active:after {
+      content: ' ⯅';
+    }
+    .content {
+      display: none;
+      padding: 0.5em 1em;
+      border-left: 4px solid #ccc;
+      margin-top: 0.5em;
+    }
+  </style>
+</head>
+<body>
+  <h2>Stelara Prior Authorization Checker</h2>
+  <p>Outpatient Dermatology – Washington State</p>
+
+  <label>Diagnosis:
+    <select id="diagnosis">
+      <option value="Psoriasis">Plaque Psoriasis</option>
+      <option value="HS">Hidradenitis Suppurativa (HS)</option>
+    </select>
+  </label>
+
+  <label>Payer:
+    <select id="payer">
+      <option value="Premera">Premera</option>
+      <option value="Regence">Regence</option>
+      <option value="Medicare">Medicare</option>
+      <option value="Medicaid">Medicaid</option>
+    </select>
+  </label>
+
+  <label>Patient Age (years):
+    <input type="number" id="age" min="0" step="0.1" />
+  </label>
+
+  <label>% Body Surface Area Affected:
+    <input type="number" id="bsa" min="0" step="0.1" />
+  </label>
+
+  <label><input type="checkbox" id="essentialArea" /> Involves face, genitals, or hands</label>
+  <label><input type="checkbox" id="topicalTherapy" /> Failed topical therapy</label>
+  <label><input type="checkbox" id="phototherapy" /> Failed phototherapy</label>
+  <label><input type="checkbox" id="systemic" /> Failed methotrexate or systemic immunosuppressant</label>
+
+  <label>Prescriber is a:
+    <select id="specialist">
+      <option value="Dermatologist">Dermatologist</option>
+      <option value="Rheumatologist">Rheumatologist</option>
+      <option value="Other">Other</option>
+    </select>
+  </label>
+
+  <label><input type="checkbox" id="dosingLabel" /> Using FDA-approved dosing</label>
+
+  <button onclick="checkStelara()">Check Documentation</button>
+
+  <div id="result" class="output"></div>
+
+  <script>
+    const rules = {
+      "Psoriasis": {
+        "Premera": {
+          minAge: 6,
+          bsaRequired: true,
+          essentialAllowed: true,
+          needsTopical: true,
+          needsPhototherapy: false,
+          needsSystemic: true,
+          specialistRequired: true,
+          dosingRequired: true
+        },
+        "Regence": {
+          minAge: 6,
+          bsaRequired: true,
+          essentialAllowed: true,
+          needsTopical: true,
+          needsPhototherapy: false,
+          needsSystemic: true,
+          specialistRequired: true,
+          dosingRequired: true
+        },
+        "Medicaid": {
+          minAge: 6,
+          bsaRequired: true,
+          essentialAllowed: true,
+          needsTopical: true,
+          needsPhototherapy: true,
+          needsSystemic: true,
+          specialistRequired: true,
+          dosingRequired: true
+        },
+        "Medicare": {
+          minAge: 6,
+          bsaRequired: false,
+          essentialAllowed: true,
+          needsTopical: true,
+          needsPhototherapy: false,
+          needsSystemic: true,
+          specialistRequired: false,
+          dosingRequired: true
+        }
+      },
+      "HS": {
+        "Premera": "not_covered",
+        "Regence": "not_covered",
+        "Medicaid": "not_covered",
+        "Medicare": "case_by_case"
+      }
+    };
+
+    const alternatives = {
+      "Psoriasis": {
+        "Premera": `
+          <ul>
+            <li><strong>Phototherapy</strong> – covered with documentation</li>
+            <li><strong>Methotrexate</strong> – systemic and lower-cost</li>
+            <li><strong>IL-17/IL-23 inhibitors</strong> – e.g., Cosentyx, Skyrizi</li>
+          </ul>`,
+        "Regence": `
+          <ul>
+            <li><strong>Phototherapy</strong> – accessible and covered</li>
+            <li><strong>Methotrexate</strong> – often used before biologics</li>
+            <li><strong>IL-17 inhibitors</strong> – may be approved after step therapy</li>
+          </ul>`,
+        "Medicaid": `
+          <ul>
+            <li><strong>Phototherapy</strong> – required before biologics</li>
+            <li><strong>Methotrexate</strong> – step therapy requirement</li>
+            <li><strong>Other topicals</strong> – confirm formulary coverage</li>
+          </ul>`,
+        "Medicare": `
+          <ul>
+            <li><strong>Phototherapy</strong> – in-office coverage available</li>
+            <li><strong>Methotrexate</strong> – low-cost systemic</li>
+            <li><strong>Other biologics</strong> – check plan formulary</li>
+          </ul>`
+      },
+      "HS": {
+        "Premera": `
+          <ul>
+            <li><strong>Humira</strong> (adalimumab) – only FDA-approved biologic for HS</li>
+            <li><strong>Clindamycin + rifampin</strong> – dual antibiotic therapy</li>
+            <li><strong>Surgical referral</strong> or <strong>pain management</strong> support</li>
+          </ul>`,
+        "Regence": `
+          <ul>
+            <li><strong>Humira</strong> – first-line for HS</li>
+            <li><strong>Antibiotics</strong> – clindamycin, doxycycline</li>
+            <li>Consider referral for <strong>derm surgery or wound care</strong></li>
+          </ul>`,
+        "Medicaid": `
+          <ul>
+            <li><strong>Humira</strong> – often covered for HS</li>
+            <li><strong>Antibiotics</strong> – required before biologics</li>
+            <li>Consider <strong>collegial consultation</strong> with state plan</li>
+          </ul>`,
+        "Medicare": `
+          <ul>
+            <li><strong>Humira</strong> – may require appeal or specialist documentation</li>
+            <li><strong>Antibiotic regimens</strong> – usually covered</li>
+            <li>Document <strong>severe impact</strong> on daily function</li>
+          </ul>`
+      }
+    };
+
+    function checkStelara() {
+      const diagnosis = document.getElementById("diagnosis").value;
+      const payer = document.getElementById("payer").value;
+      const rule = rules[diagnosis][payer];
+      const age = parseFloat(document.getElementById("age").value);
+      const bsa = parseFloat(document.getElementById("bsa").value);
+      const essential = document.getElementById("essentialArea").checked;
+      const topical = document.getElementById("topicalTherapy").checked;
+      const photo = document.getElementById("phototherapy").checked;
+      const systemic = document.getElementById("systemic").checked;
+      const specialist = document.getElementById("specialist").value.toLowerCase();
+      const dosing = document.getElementById("dosingLabel").checked;
+
+      const result = document.getElementById("result");
+      const issues = [];
+
+      if (rule === "not_covered") {
+        result.innerHTML = `❌ Stelara is not typically covered for ${diagnosis} under ${payer}.<br>
+          <button class="collapsible">💡 Suggested alternatives</button>
+          <div class="content">${alternatives[diagnosis][payer]}</div>`;
+        result.className = "output warning";
+      } else if (rule === "case_by_case") {
+        result.innerHTML = `⚠️ Stelara coverage for HS under Medicare is evaluated case-by-case.<br>
+          Submit clinical rationale with severity and failure of alternatives.<br>
+          <button class="collapsible">💡 Suggested alternatives</button>
+          <div class="content">${alternatives[diagnosis][payer]}</div>`;
+        result.className = "output warning";
+      } else {
+        if (isNaN(age) || age < rule.minAge) issues.push(`Patient age is below ${rule.minAge} years`);
+        if (rule.bsaRequired && isNaN(bsa)) {
+          issues.push("BSA must be entered");
+        } else if (rule.bsaRequired && bsa < 10 && !essential && rule.essentialAllowed) {
+          issues.push("BSA < 10% and no essential area involvement");
+        }
+        if (rule.needsTopical && !topical) issues.push("No failure of topical therapy");
+        if (rule.needsPhototherapy && !photo) issues.push("Phototherapy not attempted");
+        if (rule.needsSystemic && !systemic) issues.push("No failure of methotrexate or systemic agent");
+        if (rule.specialistRequired && !["dermatologist", "rheumatologist"].includes(specialist)) {
+          issues.push("Prescriber is not a dermatologist or rheumatologist");
+        }
+        if (rule.dosingRequired && !dosing) issues.push("Dosing is not confirmed to follow FDA label");
+
+        if (issues.length === 0) {
+          result.innerHTML = "✅ Documentation likely meets prior authorization criteria.";
+          result.className = "output success";
+        } else {
+          result.innerHTML = "⚠️ Missing or insufficient documentation:<ul>" +
+            issues.map(i => `<li>${i}</li>`).join("") + "</ul>" +
+            `<button class="collapsible">💡 Suggested alternatives</button>
+            <div class="content">${alternatives[diagnosis][payer]}</div>`;
+          result.className = "output warning";
+        }
+      }
+
+      const coll = result.querySelector(".collapsible");
+      const content = result.querySelector(".content");
+      if (coll) {
+        coll.addEventListener("click", function () {
+          this.classList.toggle("active");
+          content.style.display = content.style.display === "block" ? "none" : "block";
+        });
+      }
+    }
+  </script>
+</body>
+</html>
+

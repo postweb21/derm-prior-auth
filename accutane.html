@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Accutane Prior Auth Checker (WA Dermatology)</title>
+  <style>
+    body { font-family: sans-serif; max-width: 650px; margin: auto; padding: 1em; }
+    label { display: block; margin: 0.5em 0 0.2em; }
+    .output { margin-top: 1em; padding: 1em; border: 1px solid #ccc; border-radius: 5px; }
+    .success { background-color: #e0ffe0; border-color: #60c060; }
+    .warning { background-color: #fff4e0; border-color: #e6a23c; }
+    .collapsible {
+      background-color: #f9f9f9;
+      border: none;
+      padding: 0.5em;
+      text-align: left;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 1em;
+      width: 100%;
+    }
+    .collapsible:after {
+      content: ' ⯆';
+      float: right;
+    }
+    .collapsible.active:after {
+      content: ' ⯅';
+    }
+    .content {
+      display: none;
+      padding: 0.5em 1em;
+      border-left: 4px solid #ccc;
+      margin-top: 0.5em;
+    }
+  </style>
+</head>
+<body>
+  <h2>Accutane (Isotretinoin) Prior Authorization Checker</h2>
+  <p>Outpatient Dermatology – Washington State</p>
+
+  <label>Payer:
+    <select id="payer">
+      <option value="Premera">Premera</option>
+      <option value="Regence">Regence</option>
+      <option value="Medicare">Medicare</option>
+      <option value="Medicaid">Medicaid</option>
+    </select>
+  </label>
+
+  <label>Patient Age (years):
+    <input type="number" id="age" min="0" step="0.1" />
+  </label>
+
+  <label>Acne Severity:
+    <select id="severity">
+      <option value="severe">Severe (e.g., nodulocystic)</option>
+      <option value="moderate">Moderate</option>
+      <option value="mild">Mild</option>
+    </select>
+  </label>
+
+  <label><input type="checkbox" id="topicalFail" /> Failed topical therapy</label>
+  <label><input type="checkbox" id="antibioticFail" /> Failed oral antibiotics (e.g., doxycycline, minocycline)</label>
+  <label><input type="checkbox" id="ipledge" /> iPLEDGE/pregnancy prevention confirmed</label>
+
+  <label>Prescriber is a:
+    <select id="specialist">
+      <option value="Dermatologist">Dermatologist</option>
+      <option value="Pediatrician">Pediatrician</option>
+      <option value="Other">Other</option>
+    </select>
+  </label>
+
+  <button onclick="checkAccutane()">Check Documentation</button>
+
+  <div id="result" class="output"></div>
+
+  <script>
+    const rules = {
+      "Premera": { minAge: 12, needsTopical: true, needsAntibiotic: true, severeRequired: true, dermPreferred: true },
+      "Regence": { minAge: 12, needsTopical: true, needsAntibiotic: true, severeRequired: true, dermPreferred: true },
+      "Medicaid": { minAge: 12, needsTopical: true, needsAntibiotic: true, severeRequired: true, dermPreferred: true },
+      "Medicare": { minAge: 12, needsTopical: false, needsAntibiotic: true, severeRequired: false, dermPreferred: false }
+    };
+
+    const alternatives = {
+      "Premera": `
+        <ul>
+          <li><strong>Continue oral antibiotics</strong> with topical retinoid</li>
+          <li><strong>Topical clindamycin + benzoyl peroxide</strong></li>
+          <li><strong>Spironolactone</strong> (for female patients)</li>
+        </ul>`,
+      "Regence": `
+        <ul>
+          <li><strong>Topical therapy</strong> – adapalene, clindamycin, etc.</li>
+          <li><strong>Oral antibiotics</strong> – doxycycline or minocycline</li>
+          <li><strong>Dermatology referral</strong> if not already involved</li>
+        </ul>`,
+      "Medicaid": `
+        <ul>
+          <li><strong>Photographic documentation</strong> may help</li>
+          <li><strong>Methotrexate</strong> rarely used but can be considered off-label in rare nodular cases</li>
+          <li><strong>Spironolactone</strong> – often covered for hormonal acne</li>
+        </ul>`,
+      "Medicare": `
+        <ul>
+          <li><strong>Continue oral antibiotics</strong> with documentation of need</li>
+          <li><strong>Topical therapies</strong> – retinoids, BPO, antibiotics</li>
+          <li>Use <strong>progress notes and clinical photos</strong> to justify Accutane</li>
+        </ul>`
+    };
+
+    function checkAccutane() {
+      const payer = document.getElementById("payer").value;
+      const rule = rules[payer];
+      const age = parseFloat(document.getElementById("age").value);
+      const severity = document.getElementById("severity").value;
+      const topicalFail = document.getElementById("topicalFail").checked;
+      const antibioticFail = document.getElementById("antibioticFail").checked;
+      const ipledge = document.getElementById("ipledge").checked;
+      const specialist = document.getElementById("specialist").value.toLowerCase();
+
+      const issues = [];
+
+      if (isNaN(age) || age < rule.minAge) issues.push(`Patient age is below ${rule.minAge} years`);
+      if (rule.severeRequired && severity !== "severe") issues.push("Severity must be severe for approval");
+      if (rule.needsTopical && !topicalFail) issues.push("No failure of topical therapy documented");
+      if (rule.needsAntibiotic && !antibioticFail) issues.push("No failure of oral antibiotics documented");
+      if (!ipledge) issues.push("iPLEDGE or pregnancy prevention program not confirmed");
+      if (rule.dermPreferred && specialist !== "dermatologist") {
+        issues.push("Prescriber is not a dermatologist");
+      }
+
+      const result = document.getElementById("result");
+      if (issues.length === 0) {
+        result.innerHTML = "✅ Documentation likely meets prior authorization criteria.";
+        result.className = "output success";
+      } else {
+        result.innerHTML = "⚠️ Missing or insufficient documentation:<ul>" +
+          issues.map(i => `<li>${i}</li>`).join("") + "</ul>" +
+          `<button class="collapsible">💡 Suggested alternatives</button>
+          <div class="content">${alternatives[payer]}</div>`;
+        result.className = "output warning";
+      }
+
+      const coll = result.querySelector(".collapsible");
+      const content = result.querySelector(".content");
+      if (coll) {
+        coll.addEventListener("click", function () {
+          this.classList.toggle("active");
+          content.style.display = content.style.display === "block" ? "none" : "block";
+        });
+      }
+    }
+  </script>
+</body>
+</html>

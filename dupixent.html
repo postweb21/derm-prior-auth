@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Dupixent Prior Auth Checker (WA Dermatology)</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: auto; padding: 1em; }
+    label { display: block; margin: 0.5em 0 0.2em; }
+    .output { margin-top: 1em; padding: 1em; border: 1px solid #ccc; border-radius: 5px; }
+    .success { background-color: #e0ffe0; border-color: #60c060; }
+    .warning { background-color: #fff4e0; border-color: #e6a23c; }
+    .collapsible {
+      background-color: #f9f9f9;
+      border: none;
+      padding: 0.5em;
+      text-align: left;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 1em;
+      width: 100%;
+    }
+    .collapsible:after {
+      content: ' ⯆';
+      float: right;
+    }
+    .collapsible.active:after {
+      content: ' ⯅';
+    }
+    .content {
+      display: none;
+      padding: 0.5em 1em;
+      border-left: 4px solid #ccc;
+      margin-top: 0.5em;
+    }
+  </style>
+</head>
+<body>
+  <h2>Dupixent Prior Authorization Checker</h2>
+  <p>Outpatient Dermatology – Washington State</p>
+
+  <label>Payer:
+    <select id="payer">
+      <option value="Premera">Premera</option>
+      <option value="Regence">Regence</option>
+      <option value="Medicare">Medicare</option>
+      <option value="Medicaid">Medicaid</option>
+    </select>
+  </label>
+
+  <label>Patient Age (years):
+    <input type="number" id="age" min="0" step="0.1" />
+  </label>
+
+  <label>% Body Surface Area Affected:
+    <input type="number" id="bsa" min="0" step="0.1" />
+  </label>
+
+  <label><input type="checkbox" id="essentialArea" /> Involves face, genitals, or hands</label>
+  <label><input type="checkbox" id="topicalSteroid" /> Failed high-potency topical corticosteroid</label>
+  <label><input type="checkbox" id="calcineurin" /> Failed topical calcineurin inhibitor</label>
+
+  <label>Prescriber is a:
+    <select id="specialist">
+      <option value="Dermatologist">Dermatologist</option>
+      <option value="Allergist">Allergist</option>
+      <option value="Immunologist">Immunologist</option>
+      <option value="Other">Other</option>
+    </select>
+  </label>
+
+  <label><input type="checkbox" id="dosingLabel" /> Using weight-based dosing per label</label>
+
+  <button onclick="checkCriteria()">Check Documentation</button>
+
+  <div id="result" class="output"></div>
+
+  <script>
+    const rules = {
+      "Premera": {
+        minAge: 6,
+        bsaRequired: true,
+        essentialAllowed: true,
+        needsSteroid: true,
+        needsCalcineurin: true,
+        specialistRequired: true,
+        dosingRequired: true
+      },
+      "Regence": {
+        minAge: 6,
+        bsaRequired: true,
+        essentialAllowed: true,
+        needsSteroid: true,
+        needsCalcineurin: true,
+        specialistRequired: true,
+        dosingRequired: true
+      },
+      "Medicaid": {
+        minAge: 6,
+        bsaRequired: true,
+        essentialAllowed: true,
+        needsSteroid: true,
+        needsCalcineurin: true,
+        specialistRequired: false,
+        dosingRequired: true
+      },
+      "Medicare": {
+        minAge: 6,
+        bsaRequired: false,
+        essentialAllowed: true,
+        needsSteroid: true,
+        needsCalcineurin: true,
+        specialistRequired: false,
+        dosingRequired: true
+      }
+    };
+
+    const alternatives = {
+      "Premera": `
+        <ul>
+          <li><strong>Phototherapy</strong> – NB-UVB often covered with documentation</li>
+          <li><strong>Methotrexate</strong> or <strong>cyclosporine</strong> – systemic agents for severe AD</li>
+          <li><strong>JAK inhibitors</strong> (e.g., Rinvoq, Cibinqo) – may be covered after step therapy</li>
+        </ul>
+      `,
+      "Regence": `
+        <ul>
+          <li><strong>Phototherapy</strong> – accessible and generally covered</li>
+          <li><strong>Methotrexate</strong> or <strong>cyclosporine</strong> – often approved with specialist support</li>
+          <li><strong>JAK inhibitors</strong> – usually require Dupixent failure documentation</li>
+        </ul>
+      `,
+      "Medicaid": `
+        <ul>
+          <li><strong>Phototherapy</strong> – covered in most regions</li>
+          <li><strong>Methotrexate</strong> or <strong>cyclosporine</strong> – low-cost and typically approved</li>
+          <li><strong>JAK inhibitors</strong> – not routinely covered; appeal required</li>
+        </ul>
+      `,
+      "Medicare": `
+        <ul>
+          <li><strong>Phototherapy</strong> – in-office UVB typically covered</li>
+          <li><strong>Methotrexate</strong> or <strong>cyclosporine</strong> – often used off-label</li>
+          <li><strong>JAK inhibitors</strong> – may be approved with full step documentation</li>
+        </ul>
+      `
+    };
+
+    function checkCriteria() {
+      const payer = document.getElementById("payer").value;
+      const rule = rules[payer];
+      const age = parseFloat(document.getElementById("age").value);
+      const bsa = parseFloat(document.getElementById("bsa").value);
+      const essential = document.getElementById("essentialArea").checked;
+      const steroid = document.getElementById("topicalSteroid").checked;
+      const calcineurin = document.getElementById("calcineurin").checked;
+      const specialist = document.getElementById("specialist").value.toLowerCase();
+      const dosing = document.getElementById("dosingLabel").checked;
+
+      const issues = [];
+
+      if (isNaN(age) || age < rule.minAge) issues.push(`Patient age is below ${rule.minAge} years`);
+
+      if (rule.bsaRequired && isNaN(bsa)) {
+        issues.push("BSA must be entered");
+      } else if (rule.bsaRequired && bsa < 10 && !essential && rule.essentialAllowed) {
+        issues.push("BSA < 10% and no essential area involvement");
+      }
+
+      if (rule.needsSteroid && !steroid) issues.push("No failure of high-potency topical corticosteroid");
+      if (rule.needsCalcineurin && !calcineurin) issues.push("No failure of topical calcineurin inhibitor");
+
+      if (rule.specialistRequired && !["dermatologist", "allergist", "immunologist"].includes(specialist)) {
+        issues.push("Prescriber is not a recognized specialist");
+      }
+
+      if (rule.dosingRequired && !dosing) issues.push("Dosing is not confirmed to follow label");
+
+      const result = document.getElementById("result");
+
+      if (issues.length === 0) {
+        result.innerHTML = "✅ Documentation likely meets prior authorization criteria.";
+        result.className = "output success";
+      } else {
+        result.innerHTML = "⚠️ Missing or insufficient documentation:<ul>" +
+          issues.map(i => `<li>${i}</li>`).join("") + "</ul>" +
+          `<button class="collapsible">💡 Show Alternatives</button>
+          <div class="content">${alternatives[payer]}</div>`;
+        result.className = "output warning";
+
+        const coll = result.querySelector(".collapsible");
+        const content = result.querySelector(".content");
+        coll.addEventListener("click", function () {
+          this.classList.toggle("active");
+          content.style.display = content.style.display === "block" ? "none" : "block";
+        });
+      }
+    }
+  </script>
+</body>
+</html>
