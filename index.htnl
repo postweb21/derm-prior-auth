@@ -1,8 +1,51 @@
-derm-prior-auth/
-├── index.html            ← Landing page with links to 5 apps
-├── accutane.html
-├── dupixent.html
-├── humira.html
-├── stelara.html
-├── tacrolimus.html
-└── render.yaml           ← Optional (for Render config)
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Derm Prior Authorization Tools</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 40px auto;
+      padding: 0 20px;
+      background-color: #f9f9f9;
+      color: #333;
+    }
+    h1 {
+      text-align: center;
+      color: #2c3e50;
+    }
+    ul {
+      list-style-type: none;
+      padding: 0;
+    }
+    li {
+      margin: 12px 0;
+    }
+    a {
+      display: block;
+      padding: 12px 16px;
+      background-color: #3498db;
+      color: white;
+      text-decoration: none;
+      border-radius: 6px;
+      text-align: center;
+    }
+    a:hover {
+      background-color: #2980b9;
+    }
+  </style>
+</head>
+<body>
+  <h1>Dermatology Prior Auth Tools</h1>
+  <ul>
+    <li><a href="accutane.html">Accutane PA Checker</a></li>
+    <li><a href="dupixent.html">Dupixent PA Checker</a></li>
+    <li><a href="humira.html">Humira PA Checker</a></li>
+    <li><a href="stelara.html">Stelara PA Checker</a></li>
+    <li><a href="tacrolimus.html">Tacrolimus PA Checker</a></li>
+  </ul>
+</body>
+</html>
